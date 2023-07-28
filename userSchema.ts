@@ -21,7 +21,6 @@ export const userSchema = new mongoose.Schema({
 		type: String,
 	},
 	avatar: {
-		data: Buffer,
-		contentType: String,
+		type: String,
 	},
 });

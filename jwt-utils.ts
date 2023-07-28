@@ -1,5 +1,7 @@
 import { AuthenticationError } from 'apollo-server-express';
-import { sign, verify } from 'jsonwebtoken';
+import pkg from 'jsonwebtoken';
+const { sign, verify } = pkg;
+
 
 export const getToken = ({ id, email }: { id: string; email: string }) =>
 	sign({ id, email }, process.env.SECRET, { expiresIn: '1d' }); //the payload {id, email} will be included in the token

@@ -19,8 +19,12 @@ import {
 	UserInputError,
 	ValidationError,
 } from 'apollo-server-express';
-import { compare, hash } from 'bcryptjs';
+import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
+import { handleFileUpload } from './fileUploadUtils';
 
+
+import bCryptPkg from 'bcryptjs';
+const { compare, hash } = bCryptPkg;
 
 const UserUpdateType = new GraphQLInputObjectType({
 	name: 'UserUpdateType',
@@ -31,7 +35,6 @@ const UserUpdateType = new GraphQLInputObjectType({
 		lastName: { type: GraphQLString },
 		email: { type: GraphQLString },
 		password: { type: GraphQLString },
-		// Add other fields as needed
 	},
 });
 
@@ -39,11 +42,11 @@ const UserType: any = new GraphQLObjectType({
 	name: 'User',
 	description: 'A user.',
 	fields: () => ({
-		id: { type: new GraphQLNonNull(GraphQLID), resolve: (post) => post._id  },
-		firstName: { type: GraphQLNonNull(GraphQLString) },
-		lastName: { type: GraphQLNonNull(GraphQLString) },
-		email: { type: GraphQLNonNull(GraphQLString) },
-		password: { type: GraphQLNonNull(GraphQLString) },
+		id: { type: new GraphQLNonNull(GraphQLID), resolve: (post) => post._id },
+		firstName: { type: new GraphQLNonNull(GraphQLString) },
+		lastName: { type: new GraphQLNonNull(GraphQLString) },
+		email: { type: new GraphQLNonNull(GraphQLString) },
+		password: { type: new GraphQLNonNull(GraphQLString) },
 		avatar: { type: GraphQLString },
 		posts: {
 			type: new GraphQLList(PostType),
@@ -56,17 +59,16 @@ const UserType: any = new GraphQLObjectType({
 			},
 		},
 		token: { type: GraphQLString },
-		created: { type: GraphQLString }
+		created: { type: GraphQLString },
 	}),
 });
-
 
 const PostType = new GraphQLObjectType({
 	name: 'Post',
 	description: 'This represents a post made by a user',
 	fields: () => ({
 		id: { type: new GraphQLNonNull(GraphQLID), resolve: (post) => post._id },
-		post: { type: GraphQLNonNull(GraphQLString) },
+		post: { type: new GraphQLNonNull(GraphQLString) },
 		userId: { type: new GraphQLNonNull(GraphQLString) }, // we are not providing a resolve because the id, name, userId fields are not a part of an external object.
 		user: {
 			type: UserType,
@@ -149,13 +151,11 @@ const RootMutationType = new GraphQLObjectType({
 			description: 'Add a post',
 			args: {
 				post: {
-					type: GraphQLNonNull(GraphQLString),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 			},
-			resolve: async (_parent, args, context) => {
-				console.log('context',context)
-				const user = await getUser(context.auth);
-				console.log(user)
+			resolve: async (_parent, args, { auth }) => {
+				const user = await getUser(auth);
 				if (user) {
 					try {
 						const post = new Post({
@@ -206,7 +206,7 @@ const RootMutationType = new GraphQLObjectType({
 					type: new GraphQLNonNull(GraphQLID),
 				},
 				post: {
-					type: GraphQLNonNull(GraphQLString),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 			},
 			resolve: async (_parent, args, { auth }) => {
@@ -232,11 +232,11 @@ const RootMutationType = new GraphQLObjectType({
 			type: UserType,
 			description: 'Add a user',
 			args: {
-				firstName: { type: GraphQLNonNull(GraphQLString) },
-				lastName: { type: GraphQLNonNull(GraphQLString) },
-				email: { type: GraphQLNonNull(GraphQLString) },
-				password: { type: GraphQLNonNull(GraphQLString) },
-				avatar: { type: GraphQLString },
+				firstName: { type: new GraphQLNonNull(GraphQLString) },
+				lastName: { type: new GraphQLNonNull(GraphQLString) },
+				email: { type: new GraphQLNonNull(GraphQLString) },
+				password: { type: new GraphQLNonNull(GraphQLString) },
+				avatar: { type: GraphQLUpload },
 			},
 			resolve: async (_parent, args) => {
 				try {
@@ -253,26 +253,33 @@ const RootMutationType = new GraphQLObjectType({
 
 					const user = await User.exists({ email }).exec();
 					if (user) {
-						console.log('user exist console log', user);
 						throw new ValidationError(
 							'Account already exists with email, login or create a new account!'
 						);
 					}
-					console.log('password', password);
 					const hashedPassword = await hash(password, 10);
 					const newUser = new User({
 						firstName,
 						lastName,
 						email,
 						password: hashedPassword,
-						avatar,
 						created: new Date().toISOString(),
 					});
 					const res = await newUser.save();
 					const token = getToken({ id: res.id, email: res.email });
+
+					const avatarUrl: string = await handleFileUpload(
+						avatar,
+						'avatar',
+						res.id
+					);
+					res.avatar = avatarUrl;
+					const newRes = await res.save();
+
+					console.log(newRes.toObject());
 					return {
 						id: res.id,
-						...res.toObject(),
+						...newRes.toObject(),
 						token,
 					};
 				} catch (err) {
@@ -315,8 +322,8 @@ const RootMutationType = new GraphQLObjectType({
 					type: new GraphQLNonNull(GraphQLID),
 				},
 				user: {
-					type: UserUpdateType
-				}
+					type: UserUpdateType,
+				},
 			},
 			resolve: async (_parent, args, { auth }) => {
 				const { id } = await getUser(auth);
@@ -324,7 +331,7 @@ const RootMutationType = new GraphQLObjectType({
 					const user = User.findById(args.id);
 					if (user) {
 						if (user.getQuery().userId === id) {
-							user.updateOne({...args.user});
+							user.updateOne({ ...args.user });
 							return user;
 						} else {
 							throw new AuthenticationError(
@@ -341,8 +348,8 @@ const RootMutationType = new GraphQLObjectType({
 			type: UserType,
 			description: 'Login user',
 			args: {
-				email: { type: GraphQLNonNull(GraphQLString) },
-				password: { type: GraphQLNonNull(GraphQLString) },
+				email: { type: new GraphQLNonNull(GraphQLString) },
+				password: { type: new GraphQLNonNull(GraphQLString) },
 			},
 			resolve: async (_parent, args) => {
 				try {

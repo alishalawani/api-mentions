@@ -1,14 +1,21 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-        "module": "CommonJS",
+   "module": "ES2022",
+    "target": "ES2022",
     "noImplicitAny": true,
     "removeComments": true,
     "preserveConstEnums": true,
     "sourceMap": true,
+  
     "moduleResolution":"node",
     "esModuleInterop": true,
+   "typeRoots": ["node_modules/@types"],
+    "types": ["node", "graphql-upload"],
   },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node",
+},
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "**/*.spec.ts"]
 }

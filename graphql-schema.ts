@@ -4,7 +4,6 @@ import {
 	GraphQLString,
 	GraphQLList,
 	GraphQLNonNull,
-	GraphQLID,
 	GraphQLInputObjectType,
 } from 'graphql';
 import { User, Post } from './dbConnector';
@@ -42,7 +41,10 @@ const UserType: any = new GraphQLObjectType({
 	name: 'User',
 	description: 'A user.',
 	fields: () => ({
-		id: { type: new GraphQLNonNull(GraphQLID), resolve: (post) => post._id },
+		id: {
+			type: new GraphQLNonNull(GraphQLString),
+			resolve: (post) => post._id.toString(),
+		},
 		firstName: { type: new GraphQLNonNull(GraphQLString) },
 		lastName: { type: new GraphQLNonNull(GraphQLString) },
 		email: { type: new GraphQLNonNull(GraphQLString) },
@@ -67,7 +69,10 @@ const PostType = new GraphQLObjectType({
 	name: 'Post',
 	description: 'This represents a post made by a user',
 	fields: () => ({
-		id: { type: new GraphQLNonNull(GraphQLID), resolve: (post) => post._id },
+		id: {
+			type: new GraphQLNonNull(GraphQLString),
+			resolve: (post) => post._id.toString(),
+		},
 		post: { type: new GraphQLNonNull(GraphQLString) },
 		userId: { type: new GraphQLNonNull(GraphQLString) }, // we are not providing a resolve because the id, name, userId fields are not a part of an external object.
 		user: {
@@ -176,7 +181,7 @@ const RootMutationType = new GraphQLObjectType({
 			description: 'Delete a post',
 			args: {
 				id: {
-					type: new GraphQLNonNull(GraphQLID),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 			},
 			resolve: async (_parent, args, { auth }) => {
@@ -203,7 +208,7 @@ const RootMutationType = new GraphQLObjectType({
 			description: 'Update a post',
 			args: {
 				id: {
-					type: new GraphQLNonNull(GraphQLID),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 				post: {
 					type: new GraphQLNonNull(GraphQLString),
@@ -276,7 +281,6 @@ const RootMutationType = new GraphQLObjectType({
 					res.avatar = avatarUrl;
 					const newRes = await res.save();
 
-					console.log(newRes.toObject());
 					return {
 						id: res.id,
 						...newRes.toObject(),
@@ -292,15 +296,15 @@ const RootMutationType = new GraphQLObjectType({
 			description: 'Delete a user',
 			args: {
 				id: {
-					type: new GraphQLNonNull(GraphQLID),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 			},
 			resolve: async (_parent, args, { auth }) => {
 				const { id } = await getUser(auth);
 				try {
-					const user = User.findById(args.id);
+					const user = await User.findOne({_id: args.id}).exec();
 					if (user) {
-						if (user.getQuery().userId === id) {
+						if (user._id.toString() === id) {
 							user.deleteOne();
 							return user;
 						} else {
@@ -319,7 +323,7 @@ const RootMutationType = new GraphQLObjectType({
 			description: 'Update a user',
 			args: {
 				id: {
-					type: new GraphQLNonNull(GraphQLID),
+					type: new GraphQLNonNull(GraphQLString),
 				},
 				user: {
 					type: UserUpdateType,
